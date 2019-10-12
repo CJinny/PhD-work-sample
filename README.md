@@ -11,5 +11,5 @@
   
   - **small RNA-seq**: Again, raw reads from <i>Ufo1-1</i> mutant and wild-type were trimmed by <b>Dr. Tzuu-fen Lee</b>. I used ShortStack to conduct de-novo small RNA loci annotation as well as count accumulation at given loci (e.g. differentially methylated regions and transposable elements). I used edgeR to identify differentially expressed small RNA loci (not included in this repo) and perform a [co-occupancy] analysis to statistically measure how likely small RNA loci are co-occupied with genic/transposable element features. Some data visualization can be found [<b>here</b>](http://htmlpreview.github.io/?https://github.com/CJinny/PhD-work-sample/blob/master/sRNA_analysis_report.html).
 
-  - **ITS**: The analysis pipeline was adopted from [<b>here</b>](http://benjjneb.github.io/dada2/tutorial.html). I'm still learning. The Markdown report can be found here [<b>here</b>](http://htmlpreview.github.io/?https://github.com/CJinny/PhD-work-sample/blob/master/sRNA_analysis_report.html).
+  - **ITS**: The analysis pipeline was adopted from [<b>here</b>](http://benjjneb.github.io/dada2/tutorial.html). I'm still learning. The Markdown report can be found here [<b>here</b>](http://htmlpreview.github.io/?https://github.com/CJinny/PhD-work-sample/blob/master/dada2_ITS.html).
 
