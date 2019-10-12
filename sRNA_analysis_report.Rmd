@@ -1,0 +1,374 @@
+---
+title: "siRNA_analysis"
+author: "Jin Cui"
+date: "10/11/2019"
+output: 
+  html_document:
+    toc: TRUE
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.width=16, fig.height=12) 
+```
+
+# Package loading
+```{r }
+library(pacman)
+pacman::p_load(RColorBrewer, gplots, ggplot2, ggsignif, reshape2, gridExtra, grid)
+
+```
+
+# Read and proccess 24-nt siRNA count data from ShortStack
+
+24-nt siRNA count data from differentially methylated regions (EvW: U-E vs. WT,EvS: U-E vs. U-S, SvW: U-S vs. WT).
+Whole genome bisulfite sequencing and DMR analysis was done in Dr. Pao-yang Chen's lab.
+
+```{r warning=FALSE}
+DATAPATH <- "/Volumes/Seagate Expansion Drive/HP_WINDOS_OLD_STUFFS/COPY_FROM_DESKTOP/siRNA data Oct/Nov 1/"
+
+# delta methylation for each DMR
+CG_EvS<- read.table(paste(DATAPATH,  "CG_EvS.csv.txt", sep=""), header=F)
+CHG_EvS<- read.table(paste(DATAPATH, "CHG_EvS.csv.txt",sep=""), header=F)
+CHH_EvS<- read.table(paste(DATAPATH, "CHH_EvS.csv.txt",sep=""), header=F)
+CG_EvW<- read.table(paste(DATAPATH,  "CG_EvW.csv.txt", sep=""), header=F)
+CHG_EvW<- read.table(paste(DATAPATH, "CHG_EvW.csv.txt",sep=""), header=F)
+CHH_EvW<- read.table(paste(DATAPATH, "CHH_EvW.csv.txt",sep=""), header=F)
+CG_SvW<- read.table(paste(DATAPATH,  "CG_SvW.csv.txt", sep=""), header=F)
+CHG_SvW<- read.table(paste(DATAPATH, "CHG_SvW.csv.txt",sep=""), header=F)
+CHH_SvW<- read.table(paste(DATAPATH, "CHH_SvW.csv.txt",sep=""), header=F)
+CG_SvW1<- as.data.frame(gsub("00%", "", as.matrix(CG_SvW)))
+CG_SvW<- as.data.frame(CG_SvW1)
+
+# siRNA accumulation for each DMR
+DATAPATH1 <- "/Volumes/Seagate Expansion Drive/HP_WINDOS_OLD_STUFFS/COPY_FROM_DESKTOP/siRNA data Oct/Nov 2 24nt/"
+
+CHH_EvS_count<- read.table(paste(DATAPATH1, "CHH-ES/Counts.txt", sep=''), header=T)
+CHH_EvW_count<- read.table(paste(DATAPATH1, "CHH-Ew/Counts.txt", sep=''), header=T)
+CHH_SvW_count<- read.table(paste(DATAPATH1, "CHH-Sw/Counts.txt", sep=''), header=T)
+CHG_EvS_count<- read.table(paste(DATAPATH1, "CHG-ES/Counts.txt", sep=''), header=T)
+CHG_EvW_count<- read.table(paste(DATAPATH1, "CHG-Ew/Counts.txt", sep=''), header=T)
+CHG_SvW_count<- read.table(paste(DATAPATH1, "CHG-Sw/Counts.txt", sep=''), header=T)
+CG_EvS_count <- read.table(paste(DATAPATH1, "CG-ES/Counts.txt", sep=''),  header=T)
+CG_EvW_count <- read.table(paste(DATAPATH1, "CG-Ew/Counts.txt", sep=''),  header=T)
+CG_SvW_count <- read.table(paste(DATAPATH1, "CG-Sw/Counts.txt", sep=''),  header=T)
+
+# merge the delta methylation and siRNA accmulation for each DMR
+CHH_EvS_merge <- merge(CHH_EvS, CHH_EvS_count, by.x = "V1", by.y = "Locus")
+CHH_EvW_merge <- merge(CHH_EvW, CHH_EvW_count, by.x = "V1", by.y = "Locus")
+CHH_SvW_merge <- merge(CHH_SvW, CHH_SvW_count, by.x = "V1", by.y = "Locus")
+CHG_EvS_merge <- merge(CHG_EvS, CHG_EvS_count, by.x = "V1", by.y = "Locus")
+CHG_EvW_merge <- merge(CHG_EvW, CHG_EvW_count, by.x = "V1", by.y = "Locus")
+CHG_SvW_merge <- merge(CHG_SvW, CHG_SvW_count, by.x = "V1", by.y = "Locus")
+CG_EvS_merge  <- merge(CG_EvS,  CG_EvS_count,  by.x = "V1", by.y = "Locus")
+CG_EvW_merge  <- merge(CG_EvW,  CG_EvW_count,  by.x = "V1", by.y = "Locus")
+CG_SvW_merge  <- merge(CG_SvW,  CG_SvW_count,  by.x = "V1", by.y = "Locus")
+
+# normalize by RPM method and then calculate average accumulation
+libSize = list(8.958544, 14.469927, 10.538185, 16.858004, 21.501761, 16.821983, 14.966662, 17.359975, 10.212751)
+
+normalize <- function (df) {
+  df[,14] <- (df[,5]/libSize[[1]] + df[,6]/libSize[[2]] + df[,7]/libSize[[3]]) /3
+  df[,15] <- (df[,8]/libSize[[4]] + df[,9]/libSize[[5]] + df[,10]/libSize[[6]]) /3
+  df[,16] <- (df[,11]/libSize[[7]] + df[,12]/libSize[[8]] + df[,13]/libSize[[9]]) /3
+  colnames(df) <- c("coord", "delta", "clusterID", "main", "U-E.1", "U-E.2", "U-E.3","U-S.1", "U-S.2", "U-S.3", "WT.1", "WT.2", "WT.3", "U-E.rpm","U-S.rpm", "WT.rpm")
+  return (df)
+}
+
+CHH_EvS_merge <- normalize(CHH_EvS_merge)
+CHH_EvW_merge <- normalize(CHH_EvW_merge)
+CHH_SvW_merge <- normalize(CHH_SvW_merge)
+CHG_EvS_merge <- normalize(CHG_EvS_merge)
+CHG_EvW_merge <- normalize(CHG_EvW_merge)
+CHG_SvW_merge <- normalize(CHG_SvW_merge)
+CG_EvS_merge  <- normalize(CG_EvS_merge)
+CG_EvW_merge  <- normalize(CG_EvW_merge)
+CG_SvW_merge  <- normalize(CG_SvW_merge)
+
+CHH_EvS_data <- CHH_EvS_merge[,c(14:16,1:2)] 
+CHH_EvW_data <- CHH_EvW_merge[,c(14:16,1:2)] 
+CHH_SvW_data <- CHH_SvW_merge[,c(14:16,1:2)] 
+CHG_EvS_data <- CHG_EvS_merge[,c(14:16,1:2)] 
+CHG_EvW_data <- CHG_EvW_merge[,c(14:16,1:2)] 
+CHG_SvW_data <- CHG_SvW_merge[,c(14:16,1:2)] 
+CG_EvS_data  <- CG_EvS_merge[,c(14:16,1:2)] 
+CG_EvW_data  <- CG_EvW_merge[,c(14:16,1:2)] 
+CG_SvW_data  <- CG_SvW_merge[,c(14:16,1:2)] 
+CG_SvW_data$delta<- as.numeric(as.character(CG_SvW_data$delta))
+```
+
+```{r warning=FALSE}
+# subset hypermethylated and hypomethylated regions
+CHH_EvW_hypo<- subset(CHH_EvW_data, delta < 0)
+CHH_EvW_hyper<- subset(CHH_EvW_data, delta > 0)
+CHH_EvS_hypo<- subset(CHH_EvS_data, delta < 0)
+CHH_EvS_hyper<- subset(CHH_EvS_data, delta > 0)
+CHH_SvW_hypo<- subset(CHH_SvW_data, delta < 0)
+CHH_SvW_hyper<- subset(CHH_SvW_data, delta > 0)
+
+CHG_EvW_hypo<- subset(CHG_EvW_data, delta < 0)
+CHG_EvW_hyper<- subset(CHG_EvW_data, delta > 0)
+CHG_EvS_hypo<- subset(CHG_EvS_data, delta < 0)
+CHG_EvS_hyper<- subset(CHG_EvS_data, delta > 0)
+CHG_SvW_hypo<- subset(CHG_SvW_data, delta < 0)
+CHG_SvW_hyper<- subset(CHG_SvW_data, delta > 0)
+
+CG_EvW_hypo<- subset(CG_EvW_data, delta < 0)
+CG_EvW_hyper<- subset(CG_EvW_data, delta > 0)
+CG_EvS_hypo<- subset(CG_EvS_data, delta < 0)
+CG_EvS_hyper<- subset(CG_EvS_data, delta > 0)
+CG_SvW_hypo<- subset(CG_SvW_data, delta < 0)
+CG_SvW_hyper<- subset(CG_SvW_data, delta > 0)
+```
+
+# Mann-whitney U test on sRNA accumulation
+
+```{r warning=FALSE}
+# Mann-whitney test on sRNA accumulation data
+wilcox.test(CHH_EvS_hyper$`U-E.rpm`,CHH_EvS_hyper$`U-S.rpm`)
+wilcox.test(CHH_EvS_hypo$`U-E.rpm`,CHH_EvS_hypo$`U-S.rpm`)
+wilcox.test(CHH_EvW_hyper$`U-E.rpm`,CHH_EvW_hyper$`WT.rpm`)
+wilcox.test(CHH_EvW_hypo$`U-E.rpm`,CHH_EvW_hypo$`WT.rpm`)
+wilcox.test(CHH_SvW_hyper$`U-S.rpm`,CHH_SvW_hyper$`WT.rpm`)
+wilcox.test(CHH_SvW_hypo$`U-S.rpm`,CHH_SvW_hypo$`WT.rpm`)
+
+wilcox.test(CHG_EvS_hyper$`U-E.rpm`,CHG_EvS_hyper$`U-S.rpm`)
+wilcox.test(CHG_EvS_hypo$`U-E.rpm`,CHG_EvS_hypo$`U-S.rpm`)
+wilcox.test(CHG_EvW_hyper$`U-E.rpm`,CHG_EvW_hyper$`WT.rpm`)
+wilcox.test(CHG_EvW_hypo$`U-E.rpm`,CHG_EvW_hypo$`WT.rpm`)
+wilcox.test(CHG_SvW_hyper$`U-S.rpm`,CHG_SvW_hyper$`WT.rpm`)
+wilcox.test(CHG_SvW_hypo$`U-S.rpm`,CHG_SvW_hypo$`WT.rpm`)
+
+wilcox.test(CG_EvS_hyper$`U-E.rpm`,CG_EvS_hyper$`U-S.rpm`)
+wilcox.test(CG_EvS_hypo$`U-E.rpm`,CG_EvS_hypo$`U-S.rpm`)
+wilcox.test(CG_EvW_hyper$`U-E.rpm`,CG_EvW_hyper$`WT.rpm`)
+wilcox.test(CG_EvW_hypo$`U-E.rpm`,CG_EvW_hypo$`WT.rpm`)
+wilcox.test(CG_SvW_hyper$`U-S.rpm`,CG_SvW_hyper$`WT.rpm`)
+wilcox.test(CG_SvW_hypo$`U-S.rpm`,CG_SvW_hypo$`WT.rpm`)
+
+```
+
+# Use melt function to prepare plot data for ggplot2
+```{r warning=FALSE}
+CG_EvS_hyper_plot<- melt(CG_EvS_hyper, id=c("coord","delta"))
+CG_EvW_hyper_plot<- melt(CG_EvW_hyper, id=c("coord","delta"))
+CG_SvW_hyper_plot<- melt(CG_SvW_hyper, id=c("coord","delta"))
+CG_EvS_hypo_plot <- melt(CG_EvS_hypo,  id=c("coord","delta"))
+CG_EvW_hypo_plot <- melt(CG_EvW_hypo,  id=c("coord","delta"))
+CG_SvW_hypo_plot <- melt(CG_SvW_hypo,  id=c("coord","delta"))
+
+CHG_EvS_hyper_plot<- melt(CHG_EvS_hyper, id=c("coord","delta"))
+CHG_EvW_hyper_plot<- melt(CHG_EvW_hyper, id=c("coord","delta"))
+CHG_SvW_hyper_plot<- melt(CHG_SvW_hyper, id=c("coord","delta"))
+CHG_EvS_hypo_plot<-  melt(CHG_EvS_hypo,  id=c("coord","delta"))
+CHG_EvW_hypo_plot<-  melt(CHG_EvW_hypo,  id=c("coord","delta"))
+CHG_SvW_hypo_plot<-  melt(CHG_SvW_hypo,  id=c("coord","delta"))
+
+CHH_EvS_hyper_plot<- melt(CHH_EvS_hyper, id=c("coord","delta"))
+CHH_EvW_hyper_plot<- melt(CHH_EvW_hyper, id=c("coord","delta"))
+CHH_SvW_hyper_plot<- melt(CHH_SvW_hyper, id=c("coord","delta"))
+CHH_EvS_hypo_plot<-  melt(CHH_EvS_hypo,  id=c("coord","delta"))
+CHH_EvW_hypo_plot<-  melt(CHH_EvW_hypo,  id=c("coord","delta"))
+CHH_SvW_hypo_plot<-  melt(CHH_SvW_hypo,  id=c("coord","delta"))
+
+CHH_EvS_hyper_plot$variable<- as.factor(CHH_EvS_hyper_plot$variable)
+CHH_EvW_hyper_plot$variable<- as.factor(CHH_EvW_hyper_plot$variable)
+CHH_SvW_hyper_plot$variable<- as.factor(CHH_SvW_hyper_plot$variable)
+CHG_EvS_hyper_plot$variable<- as.factor(CHG_EvS_hyper_plot$variable)
+CHG_EvW_hyper_plot$variable<- as.factor(CHG_EvW_hyper_plot$variable)
+CHG_SvW_hyper_plot$variable<- as.factor(CHG_SvW_hyper_plot$variable)
+CG_EvS_hyper_plot$variable <- as.factor(CG_EvS_hyper_plot$variable)
+CG_EvW_hyper_plot$variable <- as.factor(CG_EvW_hyper_plot$variable)
+CG_SvW_hyper_plot$variable <- as.factor(CG_SvW_hyper_plot$variable)
+
+CHH_EvS_hypo_plot$variable<- as.factor(CHH_EvS_hypo_plot$variable)
+CHH_EvW_hypo_plot$variable<- as.factor(CHH_EvW_hypo_plot$variable)
+CHH_SvW_hypo_plot$variable<- as.factor(CHH_SvW_hypo_plot$variable)
+CHG_EvS_hypo_plot$variable<- as.factor(CHG_EvS_hypo_plot$variable)
+CHG_EvW_hypo_plot$variable<- as.factor(CHG_EvW_hypo_plot$variable)
+CHG_SvW_hypo_plot$variable<- as.factor(CHG_SvW_hypo_plot$variable)
+CG_EvS_hypo_plot$variable <- as.factor(CG_EvS_hypo_plot$variable)
+CG_EvW_hypo_plot$variable <- as.factor(CG_EvW_hypo_plot$variable)
+CG_SvW_hypo_plot$variable <- as.factor(CG_SvW_hypo_plot$variable)
+
+```
+
+# Custom ggplot2 function
+```{r warning=FALSE}
+custom_plot <- function(data, title, fontsize=15) {
+ p <- ggplot(data=data, mapping=aes(x=data$variable, y= data$value, fill=data$variable))+
+  geom_violin(width=1) + 
+  geom_boxplot(outlier.size = 0, notch = F, width=0.1, ) + 
+  geom_jitter(shape=16, height = 0, width = 0.1, size=1) + 
+  theme(legend.position="none", panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"), 
+        axis.text.x = element_text(face="italic", angle=45, vjust=1, hjust=1, size=fontsize))  + 
+  theme(plot.title=element_text(vjust=0.5, hjust=0.1, size = fontsize)) +
+  theme(axis.title.y = element_text(vjust=0.5, hjust = 0.5, size = fontsize)) +
+  theme(axis.text.y = element_text(size = fontsize)) +
+  labs(title=title, x="", y="24-nt siRNA abundance \n (reads per million)") +
+  stat_boxplot(geom = "errorbar", width=0.3) +
+  geom_signif(comparisons=list(c("U-E.rpm", "WT.rpm"), c("U-E.rpm", "U-S.rpm"), c("U-S.rpm", "WT.rpm")), 
+              textsize = 6, y_position= c(10, 9.5, 9), vjust=0, hjust=0.0, map_signif_level=TRUE, test = "wilcox.test", tip_length=0.005) +
+  ylim(0, 10) +
+  scale_x_discrete(limits=c("U-E.rpm","U-S.rpm","WT.rpm"), labels=c("U-E", "U-S", "WT")) +  
+  scale_fill_manual(values=c('blue', 'brown', 'darkgreen'))
+ 
+ return (p)
+}
+```
+
+
+# Visualize siRNA accumulation on DMRs
+
+You can clearly see that 24-nt siRNA accumulation difference is strongly correlated with CHH methylation difference.
+
+```{r warning=FALSE}
+par(mfrow=c(2,3))
+p1 = custom_plot(CHH_EvW_hyper_plot, title="CHH EvW hypermethylation")
+p2 = custom_plot(CHH_EvS_hyper_plot, title="CHH EvS hypermethylation")
+p3 = custom_plot(CHH_SvW_hyper_plot, title="CHH SvW hypermethylation")
+p4 = custom_plot(CHH_EvW_hypo_plot,  title="CHH EvW hypomethylation")
+p5 = custom_plot(CHH_EvS_hypo_plot,  title="CHH EvS hypomethylation")
+p6 = custom_plot(CHH_SvW_hypo_plot,  title="CHH SvW hypomethylation")
+
+grid.arrange(p1,p2,p3,p4,p5,p6, ncol = 3, nrow=2)
+```
+
+However, CHG DMRs accumulate less ammount of 24-nt siRNA, and 24-nt siRNA difference does not correlate well with CHG methylation difference
+
+
+```{r warning=FALSE}
+par(mfrow=c(2,3), mar=c(2, 2, 2, 2))
+p1 = custom_plot(CHG_EvW_hyper_plot, title="CHG EvW hypermethylation")
+p2 = custom_plot(CHG_EvS_hyper_plot, title="CHG EvS hypermethylation")
+p3 = custom_plot(CHG_SvW_hyper_plot, title="CHG SvW hypermethylation")
+p4 = custom_plot(CHG_EvW_hypo_plot,  title="CHG EvW hypomethylation")
+p5 = custom_plot(CHG_EvS_hypo_plot,  title="CHG EvS hypomethylation")
+p6 = custom_plot(CHG_SvW_hypo_plot,  title="CHG SvW hypomethylation")
+
+grid.arrange(p1,p2,p3,p4,p5,p6, ncol = 3, nrow=2)
+```
+
+Neither does CG DMRs
+
+```{r warning=FALSE}
+par(mfrow=c(2,3))
+p1 = custom_plot(CG_EvW_hyper_plot, title="CG EvW hypermethylation")
+p2 = custom_plot(CG_EvS_hyper_plot, title="CG EvS hypermethylation")
+p3 = custom_plot(CG_SvW_hyper_plot, title="CG SvW hypermethylation")
+p4 = custom_plot(CG_EvW_hypo_plot,  title="CG EvW hypomethylation")
+p5 = custom_plot(CG_EvS_hypo_plot,  title="CG EvS hypomethylation")
+p6 = custom_plot(CG_SvW_hypo_plot,  title="CG SvW hypomethylation")
+
+grid.arrange(p1,p2,p3,p4,p5,p6, ncol = 3, nrow=2)
+```
+
+
+# Co-occupancy analysis 
+
+This is likely due to the fact that CHH DMRs and 24-nt siRNA are mainly located in gene flanking regions whereas CG/CHG DMRs are more enriched in heterochromatic regions.
+
+Refer to <http://www.plantphysiol.org/content/170/3/1535/tab-figures-data> for additional detail on co-occupancy analysis and TE annotation
+
+```{r warning=FALSE}
+DATAPATH2 <- '/Volumes/Seagate Expansion Drive/HP_WINDOS_OLD_STUFFS/COPY_FROM_DESKTOP/'
+sRNA_occupancy <- read.csv(paste(DATAPATH2,"heatmap0.csv",sep=''), sep = ",", header = TRUE, row.names = 1)
+colnames(sRNA_occupancy)<- c("20nt","21nt","22nt","23nt","24nt","miRNA")
+sRNA_occupancy<- round(sRNA_occupancy,2)
+
+data_matrix <- data.matrix(sRNA_occupancy)
+my_palette <- colorRampPalette(c("blue", "white","red"))(n=100)
+
+data_matrix1<- data_matrix
+data_matrix1[is.na(data_matrix1)]<- "-inf"
+
+par(mar=c(2, 2, 2, 2), mfrow=c(2,1), family='Arial', cex.lab=2, cex.main=2)
+heatmap.2(data_matrix[1:8,], 
+          main = "Co-occupancy pattern in genic features",
+          cellnote = data_matrix1[1:8,], 
+          notecex = 2,
+          density.info="none", scale="none", 
+          notecol="black", col=my_palette, 
+          margins =c(10,20), 
+          na.color="blue", 
+          key.title='',
+          cexRow = 2,
+          cexCol = 2,
+          key.par = list(mar=c(8,3,8,3)),
+          key.xlab=expression(paste("log"["2"],"(obs/exp)", sep='')),
+          srtCol = 45, trace = "none")
+
+heatmap.2(data_matrix[9:15,], 
+          main = "Co-occupancy pattern in TE features",
+          cellnote = data_matrix1[9:15,], 
+          notecex = 2,
+          density.info="none", scale="none", 
+          notecol="black", col=my_palette, 
+          margins =c(10,20), 
+          na.color="blue", 
+          key.title='',
+          cexRow = 2,
+          cexCol = 2,
+          key.par = list(mar=c(8,3,8,3)),
+          key.xlab=expression(paste("log"["2"],"(obs/exp)", sep='')),
+          srtCol = 45, trace = "none")
+
+```
+
+```{r warning=FALSE}
+my_palette <- colorRampPalette(c("blue","white","red"))(n=100)
+dmr_occupancy <- read.csv(paste(DATAPATH2, "heatmap3.csv", sep=''), sep = ",", header = TRUE, row.names = 1)
+
+colnames(dmr_occupancy)<- c("EvW CG hypermethylation","EvW CG hypomethylation",
+                   "EvW CHG hypermethylation","EvW CHG hypomethylation",
+                   "EvW CHH hypermethylation","EvW CHH hypomethylation",
+                   "EvS CG hypermethylation","EvS CG hypomethylation",
+                   "EvS CHG hypermethylation","EvS CHG hypomethylation",
+                   "EvS CHH hypermethylation","EvS CHH hypomethylation",
+                   "SvW CG hypermethylation","SvW CG hypomethylation",
+                   "SvW CHG hypermethylation","SvW CHG hypomethylation",
+                   "SvW CHH hypermethylation","SvW CHH hypomethylation")
+dmr_occupancy <- round(dmr_occupancy,1)
+
+data_matrix<- data.matrix(dmr_occupancy)
+data_matrix1<- data_matrix
+data_matrix1[is.na(data_matrix1)]<- "inf"
+
+par(mar=c(8, 2, 2, 2), mfrow=c(2,1), family='Arial', cex.lab=2, cex.main=2)
+SIZE = 2
+heatmap.2(data_matrix[c(1,4,5,6,7,8,13,15),],
+          cellnote = data_matrix1[c(1,4,5,6,7,8,13,15),], 
+          main = "Co-occupancy pattern in genic features",
+          key.xlab=expression(paste("log"["2"],"(obs/exp)", sep='')),
+          key.title='',
+          key.par = list(mar=c(8,3,8,3)),
+          notecex = SIZE,
+          cexCol=SIZE,
+          cexRow = SIZE,
+          srtCol = 45,
+          na.color = "blue",
+          density.info="none", 
+          scale="none", 
+          notecol="black", 
+          col=my_palette, 
+          margins =c(18,22), 
+          trace = "none")
+
+heatmap.2(data_matrix[c(2,3,9,10,11,12,14),],
+          cellnote = data_matrix1[c(2,3,9,10,11,12,14),], 
+          main = "Co-occupancy pattern in TE features",
+          key.xlab=expression(paste("log"["2"],"(obs/exp)", sep='')),
+          key.title='',
+          key.par = list(mar=c(8,3,8,3)),
+          notecex = SIZE,
+          cexCol=SIZE,
+          cexRow = SIZE,
+          srtCol = 45,
+          na.color = "blue",
+          density.info="none", 
+          scale="none", 
+          notecol="black", 
+          col=my_palette, 
+          margins =c(18,16), 
+          trace = "none")
+```
