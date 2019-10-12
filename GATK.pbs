@@ -1,0 +1,42 @@
+#!/bin/sh -f
+# qsub gatk.pbs
+
+#PBS -l nodes=1:ppn=20
+##PBS -l pmem=1gb
+#PBS -A open
+#PBS -l walltime=23:50:00
+#PBS -j oe
+#PBS -o gatk.out
+#PBS -N gatk
+#PBS -M juc326@psu.edu
+#PBS -m abe
+#######################################
+
+module load gcc/5.3.1 samtools/0.1.19 
+export PATH=~/work/GATK:$PATH
+export PATH=~/work/picard:$PATH
+cd $PBS_O_WORKDIR
+
+
+
+# make .dict and .fai for reference fasta
+java -jar picard.jar CreateSequenceDictionary R=~/work/Zea_mays.AGPv4.fa O=~/work/Zea_mays.AGPv4.dict
+samtools faidx ~/work/Zea_mays.AGPv4.fa
+
+
+for DIR in */ ; do
+    cd "$DIR"
+    java -jar picard.jar AddOrReplaceReadGroups I=Aligned.sortedByCoord.out.bam O=rg_added_sorted.bam SO=coordinate RGID=$DIR RGLB=mRNA RGPL=illumina RGPU=HiSeq2500 RGSM=$DIR
+    java -jar picard.jar MarkDuplicates I=rg_added_sorted.bam O=dedupped.bam CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT M=output.metrics 
+
+    java -jar GenomeAnalysisTK.jar -T SplitNCigarReads -R ~/work/Zea_mays.AGPv4.fa -I dedupped.bam -o split.bam -rf ReassignOneMappingQuality -RMQF 255 -RMQT 60 -U ALLOW_N_CIGAR_READS
+    java -jar GenomeAnalysisTK.jar -T HaplotypeCaller -R ~/work/Zea_mays.AGPv4.fa -I split.bam -dontUseSoftClippedBases -stand_call_conf 20.0 -o haplotype.vcf
+
+    java -jar GenomeAnalysisTK.jar -T VariantFiltration -R ~/work/Zea_mays.AGPv4.fa -V haplotype.vcf -window 35 -cluster 3 -filterName FS -filter "FS > 30.0" -filterName QD -filter "QD < 2.0" -o gatk.vcf 
+    cd ../
+done
+
+#######################################
+echo "Job Started"
+echo "Job Ended"
+
