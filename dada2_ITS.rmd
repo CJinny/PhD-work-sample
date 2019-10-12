@@ -1,0 +1,249 @@
+---
+title: "dada2 pipeline for soil ITS data"
+author: "Mara Cloutier, Jin Cui"
+date: "6/6/2019"
+output: html_document
+---
+
+```{r, results="hide" }
+
+library(pacman)
+pacman::p_load(dada2, ShortRead, Biostrings, phyloseq, microbiome, DESeq2, biomformat, devtools, lme4, lmerTest, Hmisc, ggplot2, tibble,
+               vegan, igraph, visNetwork, scales, adespatial,gtools)
+```
+
+## Set I data
+
+```{r setwd}
+setwd("/Volumes/My Passport for Mac/SetI/ITS_Sample_Set_I/QualityFiltered/")
+path <- "/Volumes/My Passport for Mac/SetI/ITS_Sample_Set_I/QualityFiltered/"
+list.files(path)
+```
+
+```{r fn}
+fnFs <- sort(list.files(path, pattern="_R1_001.fastq", full.names = TRUE))
+fnRs <- sort(list.files(path, pattern="_R2_001.fastq", full.names = TRUE))
+sample.names <- sapply(strsplit(basename(fnFs), "_"), `[`, 1)
+sample.names
+```
+
+```{r filt_}
+filt_path <- file.path(path, "filtered")
+filtFs <- file.path(filt_path, paste0(sample.names, "_F_filt.fastq.gz"))
+filtRs <- file.path(filt_path, paste0(sample.names, "_R_filt.fastq.gz"))
+
+```
+
+
+```{r filterandtrim}
+out.new <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, 
+                         truncLen=c(120,120),        # the more overlap the higher quality, if chosen 100, less overlap less quality
+                         minLen = 100,
+                         maxN=0,                     # ambiguity don't know if its A or T
+                         maxEE=c(3,3),               # maximum number of expected error, default is c(2,2), now is more tolerant
+                         truncQ=2,                   # 
+                         rm.phix=TRUE,               # 
+                         compress=TRUE, 
+                         multithread=TRUE) 
+
+```
+
+
+```{r err}
+errF <- learnErrors(filtFs, multithread=TRUE)
+errR <- learnErrors(filtRs, multithread=TRUE)
+```
+
+```{r plot_errF, fig.width=8, fig.height=6}
+plotErrors(errF, nominalQ=TRUE)
+```
+
+```{r plot_errR, fig.width=8, fig.height=6}
+plotErrors(errR, nominalQ=TRUE)
+```
+
+```{r derep}
+derepFs <- derepFastq(filtFs, verbose=TRUE)
+derepRs <- derepFastq(filtRs, verbose=TRUE)
+names(derepFs) <- sample.names
+names(derepRs) <- sample.names
+```
+
+```{r dada}
+dadaFs <- dada(derepFs, err=errF, multithread=TRUE)
+dadaRs <- dada(derepRs, err=errR, multithread=TRUE)
+```
+
+
+```{r display}
+dadaFs[[1]]
+dadaRs[[1]]
+```
+
+```{r mergers}
+mergers <- mergePairs(dadaFs, derepFs, dadaRs, derepRs, verbose=TRUE)
+head(mergers[[1]])
+```
+
+```{r seqtab}
+seqtab <- makeSequenceTable(mergers)
+dim(seqtab)
+table(nchar(getSequences(seqtab)))
+seqtab2 <- seqtab[,nchar(colnames(seqtab)) %in% seq(188,197)]
+dim(seqtab2)
+saveRDS(seqtab2, "/Volumes/My Passport for Mac/Rdata/seqtab-SetI_orig.rds")
+```
+
+## Set II data
+
+```{r setwd2}
+setwd("/Volumes/My Passport for Mac/SetII/ITS-Sample-Set-II/Pre-filtered/")
+path <- "/Volumes/My Passport for Mac/SetII/ITS-Sample-Set-II/Pre-filtered/"
+list.files(path)
+```
+
+```{r fn2}
+fnFs <- sort(list.files(path, pattern="_R1_001.fastq", full.names = TRUE))
+fnRs <- sort(list.files(path, pattern="_R2_001.fastq", full.names = TRUE))
+sample.names <- sapply(strsplit(basename(fnFs), "_"), `[`, 1)
+sample.names
+```
+
+```{r filt_2}
+filt_path <- file.path(path, "filtered")
+filtFs <- file.path(filt_path, paste0(sample.names, "_F_filt.fastq.gz"))
+filtRs <- file.path(filt_path, paste0(sample.names, "_R_filt.fastq.gz"))
+
+```
+
+
+```{r filterandtrim2}
+out.new <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, 
+                         truncLen=c(120,120),        # the more overlap the higher quality, if chosen 100, less overlap less quality
+                         minLen = 100,
+                         maxN=0,                     # ambiguity don't know if its A or T
+                         maxEE=c(3,3),               # maximum number of expected error, default is c(2,2), now is more tolerant
+                         truncQ=2,                   # 
+                         rm.phix=TRUE,               # 
+                         compress=TRUE, 
+                         multithread=TRUE) 
+
+```
+
+
+```{r err2}
+errF <- learnErrors(filtFs, multithread=TRUE)
+errR <- learnErrors(filtRs, multithread=TRUE)
+```
+
+```{r plot_errF2, fig.width=8, fig.height=6}
+plotErrors(errF, nominalQ=TRUE)
+```
+
+```{r plot_errR2, fig.width=8, fig.height=6}
+plotErrors(errR, nominalQ=TRUE)
+```
+
+```{r derep2}
+derepFs <- derepFastq(filtFs, verbose=TRUE)
+derepRs <- derepFastq(filtRs, verbose=TRUE)
+names(derepFs) <- sample.names
+names(derepRs) <- sample.names
+```
+
+```{r dada2}
+dadaFs <- dada(derepFs, err=errF, multithread=TRUE)
+dadaRs <- dada(derepRs, err=errR, multithread=TRUE)
+```
+
+
+```{r display2}
+dadaFs[[1]]
+dadaRs[[1]]
+```
+
+```{r mergers2}
+mergers <- mergePairs(dadaFs, derepFs, dadaRs, derepRs, verbose=TRUE)
+head(mergers[[1]])
+```
+
+```{r seqtab2}
+seqtab <- makeSequenceTable(mergers)
+dim(seqtab)
+table(nchar(getSequences(seqtab)))
+seqtab2 <- seqtab[,nchar(colnames(seqtab)) %in% seq(188,197)]
+dim(seqtab2)
+saveRDS(seqtab2, "/Volumes/My Passport for Mac/Rdata/seqtab-SetII_orig.rds")
+
+```
+
+## Merge Set I and Set II
+```{r }
+seqtab1 = readRDS("/Volumes/My Passport for Mac/Rdata/seqtab-SetI_orig.rds")
+seqtab2 = readRDS("/Volumes/My Passport for Mac/Rdata/seqtab-SetII_orig.rds")
+seqtab.full <- mergeSequenceTables(seqtab1, seqtab2)
+dim(seqtab.full)
+```
+
+```{r }
+seqtab.nochim.full <- removeBimeraDenovo(seqtab.full, method="consensus", multithread=TRUE, verbose=TRUE)
+dim(seqtab.nochim.full)
+```
+
+```{r }
+sum(seqtab.nochim.full)/sum(seqtab.full)
+```
+
+```{r track}
+track <- cbind(rowSums(seqtab.full), rowSums(seqtab.nochim.full))
+colnames(track) <- c("tabled", "nonchim")
+track
+```
+
+```{r taxa}
+unite.ref<- "/Users/jincui/Downloads/EB0CCB3A871B77EA75E472D13926271076904A588D2E1C1EA5AFCF7397D48378/sh_general_release_dynamic_02.02.2019.fasta"
+taxa<- assignTaxonomy(seqtab.nochim.full, unite.ref, multithread = TRUE, tryRC = TRUE)
+taxa.print<- taxa
+rownames(taxa.print)
+head(taxa.print)
+```
+
+```{r }
+seqtab.nochim.full.mod<-seqtab.nochim.full
+ncol(seqtab.nochim.full.mod)
+fin.ESV.names<-paste("ESV",sep = "",rep(1:ncol(seqtab.nochim.full.mod)))
+colnames(seqtab.nochim.full.mod)<-fin.ESV.names
+taxa.mod<-cbind(taxa, fin.ESV.names)
+df<-rownames_to_column(as.data.frame(taxa.mod), var="sequence")
+esv.table<-otu_table(seqtab.nochim.full.mod, taxa_are_rows=FALSE)
+fin.ESV.names<-colnames(esv.table)
+df.esv<-as.data.frame(fin.ESV.names)
+taxa.evs<-cbind(df, df.esv)
+taxa.evs.final<-column_to_rownames(taxa.evs, var="fin.ESV.names")
+tax.evs.final.mat<-as.matrix(taxa.evs.final)
+tax.evs.final.table<-tax_table(tax.evs.final.mat)
+head(taxa_names(tax.evs.final.table))
+write.table(taxa.evs.final, file = "/Users/jincui/Downloads/ESV_Taxonomy_ITS_BothSets.txt")
+write.table(seqtab.nochim.full.mod, file="/Users/jincui/Downloads/ESV_Abund_Table_ITS_BothSets.txt")
+
+```
+
+
+```{r }
+Map<-import_qiime_sample_data("/Users/jincui/Downloads/Sorghum-Rhizosphere-ChopraBruns-master/Sorghum_FullMap-forFungi.txt")
+Map.1<-read.table("/Users/jincui/Downloads/Sorghum-Rhizosphere-ChopraBruns-master/Sorghum_FullMap-forFungi.txt", row.names=1, header=T)
+esv.table<-otu_table(seqtab.nochim.full.mod, taxa_are_rows=FALSE)
+ps <- phyloseq(esv.table, tax.evs.final.table, Map)
+```
+
+```{r summary}
+summary(ps@otu_table)     # Should include ESV info
+```
+
+```{r ps}
+ps@tax_table              # Should include taxonomic info
+```
+
+```{r pssam}
+ps@sam_data               # Should reflect the mapping file that we imported
+```
